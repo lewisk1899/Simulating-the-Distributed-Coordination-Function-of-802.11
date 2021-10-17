@@ -1,35 +1,36 @@
-import math
+# Lewis Koplon
+# Simulating the Distributed Coordination Function of 802.11
+
 import numpy as np
 
+
+class Transmitter:
+    def __init__(self, arrivals):
+        self.buffer = []
+        self.arrivals = arrivals
+        self.backoff = 0
+        self.contention_window_size = 4
+        self.successes = 0
+        self.difs = 4
+
+    def generate_backoff(self):
+        self.backoff = np.random.randint(0, self.contention_window_size - 1)
+
+    def transmit_slot(self, arrival):
+        self.t_slot = arrival + self.difs + self.backoff
+
+    def gen_backoff(self, collisions):
+        return np.random.randint(0, collisions * self.contention_window_size - 1)
+
+
 class Simulation:
-    # a or b for topologies to be simulated, protocol will take string "csma with ca" or "vcs" as an input
-    def __init__(self, protocol, topology, arrival_rate):
-        # these are the variables of the simulation
+    def __init__(self, arrival_rate):
         self.arrival_rate = arrival_rate
-        self.topology = topology
-        self.protocol = protocol
-        # hard parameters of the simulation
-        self.DIFS = 2
-        self.ACK = 2
-        self.RTS = 2
-        self.CTS = 2
-        self.SIFS = 1 # short interframe spacing is 2 slots long
-        self.FRAME = 100
-        self.CW_0 = 4 # initial contention window
-        self.CW_MAX = 1024 # initial contention window max
-        self.transmission_rate = 12 # 12 Mbps
-
-        # empty placeholders for the transmitter objects
-        self.transmitter_a = None
-        self.transmitter_c = None
-        self.transmitters = [self.transmitter_a, self.transmitter_c] # for the purpose of this simulation the amount of transmitters will always be two
-
-        # this is the type of stuff we are trying to measure
-        self.num_of_collisions = 0
-        self.num_of_successful_transmissions = 0
+        self.tx_a = None
+        self.tx_c = None
 
     def poisson_distributed_arrival_timings(self):
-        frames_needed = self.arrival_rate * 5  # For instance, when λ = 200 frames per second, you will need approximately 2,000 frames to fill arrivals for 10 seconds. That means you need to draw 2,000 at random in (0, 1).
+        frames_needed = self.arrival_rate * 10  # For instance, when λ = 200 frames per second, you will need approximately 2,000 frames to fill arrivals for 10 seconds. That means you need to draw 2,000 at random in (0, 1).
         uniform_number = np.random.uniform(0.0, 1.0, frames_needed)
         i = 0
         for u_num in uniform_number:  # converting the uniform distributed values to that of an exponentially distributed value
@@ -40,7 +41,7 @@ class Simulation:
             uniform_number)  # convert the array to be of values at the current index added to the previous
         # i.e. [x1, x2, x3] will become [x1, x1 + x2, x1 + x2 + x3] and so on
         del uniform_number  # free up the memory
-        return [round(i/10) for i in arrival_times]  # time of arrival is in slots
+        return [round(i / 10) for i in arrival_times]  # time of arrival is in slots
 
     def conversion(self, x):
         y = [0.0] * len(x)
@@ -51,120 +52,1063 @@ class Simulation:
         y[len(x) - 1] = sum(x)
         return y
 
-    def set_transmitter_a(self, transmitter):
-        self.transmitter_a = transmitter
 
-    def set_transmitter_c(self, transmitter):
-        self.transmitter_c = transmitter
+def run_CSMA_Top_A_simulation(arrival_rate):
+    sim1 = Simulation(arrival_rate)
+    a_arrivals = sim1.poisson_distributed_arrival_timings()
+    c_arrivals = sim1.poisson_distributed_arrival_timings()
+    print("A arrivals :", a_arrivals)
+    sim1.tx_a = Transmitter(a_arrivals)  #
+    print("C arrivals:", c_arrivals)
+    sim1.tx_c = Transmitter(c_arrivals)  #
 
-    def csma_ca_protocol_topology_a(self):
-        clock = 0
-        collisions = 0
-        while (len(self.transmitter_a.get_arrivals()) != 0 and len(self.transmitter_c.get_arrivals()) != 0):
-            # frame has arrived at the buffer
-            slot_num_for_a = self.transmitter_a.get_arrivals()[0]
-            slot_num_for_c = self.transmitter_c.get_arrivals()[0]
-            # these two statements are how we are going to compare who goes first
-            x = self.transmitter_a.get_arrivals()[0] + self.DIFS + self.transmitter_a.select_back_off(collisions)
-            y = self.transmitter_c.get_arrivals()[0] + self.DIFS + self.transmitter_c.select_back_off(collisions)
-            if x < y:
-                # generate a backoff value and transmit a frame
-                print("frame arrived @ tx a, @slot: " , self.transmitter_a.get_arrivals()[0])
-                print("a goes first @ slot number ", x)
-                clock = x + self.FRAME + self.SIFS + self.ACK
-                self.transmitter_a.set_arrivals(self.transmitter_a.get_arrivals()[1:])
-            # station c is transmitting first
-            elif x > y:
-                self.transmitter_c.set_arrivals(self.transmitter_c.get_arrivals()[1:])
-                print("frame arrived @ tx c, @slot:" , self.transmitter_c.get_arrivals()[0])
-                print("c goes first @ slot number", y)
-                clock = y + self.FRAME + self.SIFS + self.ACK
-            # station a and c get their arrival so we must use their backoff values
-            elif  x == y:
-                collisions += 1
-                print(collision)
-
-    def csma_ca_protocol_topology_b(self):
-        return None
-
-
-    def csma_ca_with_vcs(self):
-        return None
-
-    def is_there_a_collision(self, protocol, topology):
-        if self.protocol == "csma ca" and self.topology == "a":
-            return None
-        elif self.protocol == "csma ca" and self.topology == "b":
-            return None
-        elif self.protocol == "vcs" and self.topology == "a":
-            return None
-        elif self.protocol == "vcs" and self.topology == "b":
-            return None
-
-
-class Transmitter:
-    def __init__(self, arrivals):
-        self.buffer = []
-        self.arrivals = arrivals # the list of arrival times when a frame is delivered from the application and ready to be transmitted
-        self.back_off = 0
-        self.contention_window_size = 4
-
-    def update_contention_window(self, collision_status):
-        # if failed transmission then increase the contention window size
-        if collision_status and self.contention_window_size < 1024:
-            self.contention_window_size = 2*self.contention_window_size
-        # failure of transmission but the contention window cannot grow any larger
-        elif collision_status and self.contention_window_size == 1024:
-            self.contention_window_size = self.contention_window_size
-        # successful transmission reset the contention window size
+    clock = 0
+    DIFS = 2
+    SIFS = 2
+    ACK = 2
+    b_a = np.random.randint(0, 4)
+    print(b_a)
+    b_c = np.random.randint(0, 4)
+    print(b_c)
+    frame_size = 100
+    success_a = 0
+    success_c = 0
+    collision_a = 0
+    collision_c = 0
+    collision = 0
+    i = 0
+    retry = 0
+    print("Start:")
+    run = True
+    while run:
+        print("Clock:", clock)
+        if clock > 1000000:
+            run = False
+        if success_a == 0 and success_c == 0 and retry == 0:
+            x_a = sim1.tx_a.arrivals[0]
+            x_c = sim1.tx_c.arrivals[0]
+            if (x_a > x_c):
+                clock = x_c
+            else:
+                clock = x_a
+        # if a has nothing to transmit c transmits
+        if not success_a < len(sim1.tx_a.arrivals) and success_c < len(sim1.tx_c.arrivals):
+            print("C arrived @", clock, " and contends with no one so it has a success @",
+                  clock + DIFS + b_c)
+            clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # clock guaranteed to proceed to the end of transmission and wait for next arrival
+            print("C's frame is finished transmitting @", clock)
+            success_c += 1  # success for c
+            sim1.tx_c.contention_window_size = 4
+            if success_c < len(sim1.tx_c.arrivals):
+                x_c = sim1.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+        # if c has nothing to transmit a transmits
+        elif success_a < len(sim1.tx_a.arrivals) and not success_c < len(sim1.tx_c.arrivals):
+            print("A arrived @", clock, "and contends with no one so it has a success @",
+                  clock + DIFS + b_a)
+            clock = clock + DIFS + b_a + frame_size + SIFS + ACK
+            print("A's frame is finished transmitting @", clock)
+            success_a += 1
+            sim1.tx_a.contention_window_size = 4
+            if success_a < len(sim1.tx_a.arrivals):
+                x_a = sim1.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
         else:
-            self.contention_window_size = 4
+            print("Contention between x_a:", x_a, "and x_c:", x_c)
+            if clock <= x_c:
+                if clock + b_a == x_c + b_c:  # collision
+                    collision_a += 1
+                    collision += 1
+                    retry += 1  # how many times has this loop been entered
+                    # expand collision windows
+                    clock = clock + DIFS + b_a  # clock goes to the collision, and a new DIFS cycle shall start RTS collision
+                    # increase contention window
+                    sim1.tx_a.contention_window_size = 2 ** retry * 4
+                    sim1.tx_c.contention_window_size = 2 ** retry * 4
+                    # choose new backoffs
+                    b_a = np.random.randint(0, sim1.tx_a.contention_window_size)  # new backoff
+                    b_c = np.random.randint(0, sim1.tx_c.contention_window_size)
+                    # these will seemingly arrive at the end of the collision
+                    x_a = clock
+                    x_c = clock
+                    print("CRP")
+                elif clock + b_a < x_c + b_c:  # a gets its cts off before c
+                    success_a += 1
+                    sim1.tx_a.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("A arrived @", clock, "and A transmitted @", clock + DIFS + b_a)
+                    # advance clock
+                    clock = clock + DIFS + b_a + frame_size + SIFS + ACK  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("A's frame finished @", clock)
+                    b_a = np.random.randint(0, sim1.tx_a.contention_window_size)  # new backoff
+                    # how does b_c change
+                    b_c = abs(b_c - b_a)
+                    if success_a < len(sim1.tx_a.arrivals):
+                        x_a = sim1.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+                elif clock + b_a > x_c + b_c:  # c gets its cts off before a
+                    success_c += 1
+                    sim1.tx_c.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("C arrived @", clock, "and C transmitted @", clock + DIFS + b_c)
+                    # advance clock
+                    clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("C's frame finished @", clock)
+                    b_c = np.random.randint(0, sim1.tx_c.contention_window_size)  # new backoff
+                    b_a = abs(b_a - b_c)
+                    if success_c < len(sim1.tx_c.arrivals):
+                        x_c = sim1.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+            elif clock < x_a:
+                if clock + b_c == x_a + b_a:  # collision
+                    collision_c += 1
+                    collision += 1
+                    retry += 1  # how many times has this loop been entered
+                    # expand collision windows
+                    clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # clock goes to the collision, and a new DIFS cycle shall start RTS collision
+                    # increase contention window
+                    sim1.tx_a.contention_window_size = 2 ** retry * 4
+                    sim1.tx_c.contention_window_size = 2 ** retry * 4
+                    # choose new backoffs
+                    b_a = np.random.randint(0, sim1.tx_a.contention_window_size)  # new contenton window size
+                    b_c = np.random.randint(0, sim1.tx_c.contention_window_size)
+                    # these will seemingly arrive at the end of the collision
+                    x_a = clock
+                    x_c = clock
+                    print("CRP")
+                elif clock + b_c < x_a + b_a:  # c gets its cts off before a
+                    success_c += 1
+                    sim1.tx_c.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("C arrived @", clock, "and C transmitted @", clock + DIFS + b_c)
+                    # advance clock
+                    clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("C's frame finished @", clock)
+                    b_c = np.random.randint(0, sim1.tx_c.contention_window_size)  # new backoff
+                    b_a = abs(b_a - b_c)
+                    if success_c < len(sim1.tx_c.arrivals):
+                        x_c = sim1.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+                    # do we change the clock
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+                elif clock + b_c > x_a + b_a:  # a gets its cts off before c
+                    success_a += 1
+                    sim1.tx_a.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("A arrived @", clock, "and A transmitted @", clock + DIFS + b_a)
+                    # advance clock
+                    clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("A's frame finished @", clock)
+                    b_a = np.random.randint(0, sim1.tx_a.contention_window_size)  # new backoff
+                    b_c = abs(b_a - b_a)
+                    if success_a < len(sim1.tx_a.arrivals):
+                        x_a = sim1.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+    print("End:")
+    print("Amount of Successful transmissions for TX A for hidden terminal problem:", success_a)
+    print("Amount of collisions for TX A for hidden terminal problem:", collision_a)
+    print("Amount of Successful transmissions for TX C for hidden terminal problem:", success_c)
+    print("Amount of collisions for TX C for hidden terminal problem:", collision_c)
+    print("Amount of Collisions:", collision)
+    return success_a, success_c, collision_a, collision_c, collision
 
-    # adding a frame waiting at the buffer of the transmitter
-    def add_to_buffer(self, arrival):
-        self.buffer.append(arrival)
+    # run = True
+    # while run:
+    #     print("Clock:", clock)
+    #     if clock > 1000000:
+    #         run = False
+    #     if success_for_a == 0 and success_for_c == 0:
+    #         x_a = sim1.tx_a.arrivals[0]
+    #         x_c = sim1.tx_c.arrivals[0]
+    #         if (x_a > x_c):
+    #             clock = x_c
+    #         else:
+    #             clock = x_a
+    #         i += 1
+    #     print("Contention between x_a:", x_a, "and x_c:", x_c)
+    #     if not success_for_a < len(sim1.tx_a.arrivals) and success_for_c < len(sim1.tx_c.arrivals):
+    #         print("c arrived @:", x_c,"tramsmitted in slot", DIFS + b_c + clock)
+    #         clock = clock + DIFS + b_c + frame_size + SIFS + ACK
+    #         success_for_c += 1
+    #         sim1.tx_c.contention_window_size = 4
+    #         if success_for_c < len(sim1.tx_c.arrivals):
+    #             x_c = sim1.tx_c.arrivals[success_for_c]  # get the next arrival for comparison
+    #         else:
+    #             x_c = x_c
+    #     elif success_for_a < len(sim1.tx_a.arrivals) and not success_for_c < len(sim1.tx_c.arrivals):
+    #         print("a arrived @:", x_a,"tramsmitted in slot", DIFS + b_a + clock)
+    #         clock = clock + DIFS + b_a + frame_size + SIFS + ACK
+    #         success_for_a += 1
+    #         sim1.tx_a.contention_window_size = 4
+    #         if success_for_a < len(sim1.tx_a.arrivals):
+    #             x_a = sim1.tx_a.arrivals[success_for_a]  # get the next arrival for comparison
+    #         else:
+    #             x_a = x_a
+    #     else:
+    #
+    #         if clock < x_a and clock < x_c:  # if there are two future events
+    #             if x_a + b_a == x_c + b_c:  # collision
+    #                 collision += 1
+    #                 retry += 1
+    #                 clock = x_a + b_a + frame_size + SIFS + ACK
+    #                 sim1.tx_a.contention_window_size = 2 ** retry * 4
+    #                 sim1.tx_c.contention_window_size = 2 ** retry * 4
+    #                 b_a = np.random.randint(0, sim1.tx_a.contention_window_size)
+    #                 b_c = np.random.randint(0, sim1.tx_c.contention_window_size)
+    #                 print("collision")
+    #             elif x_a + b_a < x_c + b_c:  # and if a gets to its back off first, a transmits first
+    #                 retry = 0
+    #                 print("a arrived @:", x_a, " transmitted in slot", x_a + b_a + DIFS + 1)
+    #                 clock = x_a + b_a + 1 + DIFS + SIFS + ACK + frame_size # move event clock to the new difs period
+    #                 success_for_a += 1 # a was successful
+    #
+    #                 sim1.tx_a.contention_window_size = 4
+    #                 if x_c >= x_a + b_a: # countdown of backoff value for c has not even started before getting frozen
+    #                     # freeze the backoff
+    #                     pass
+    #                 else:
+    #                     b_c = x_a + b_a - x_c  # this should be the new backoff (freezing the backoff)
+    #                 # generate new backoff for a
+    #                 b_a = np.random.randint(0,4)
+    #                 if success_for_a < len(sim1.tx_a.arrivals):
+    #                     x_a = sim1.tx_a.arrivals[success_for_a]  # get the next arrival for comparison
+    #                 else:
+    #                     x_a = x_a
+    #                 #where do we advance clock next
+    #                 if(x_a < x_c):
+    #                     clock = x_a
+    #                 else:
+    #                     clock = x_c
+    #             else:  # and if c gets to its back off first, c transmits first
+    #                 retry = 0
+    #                 print("c arrived @:", x_c, " transmitted in slot", x_c + b_c + DIFS + 1)
+    #                 clock = clock + b_c + DIFS + SIFS + ACK + frame_size
+    #                 success_for_c += 1
+    #                 sim1.tx_c.contention_window_size = 4
+    #                 if x_c >= x_a + b_a: # countdown of backoff value for a has not even started before getting frozen
+    #                     # Keep the same backoff
+    #                     pass
+    #                 else:
+    #                     b_a = abs(x_c + b_c - x_a)  # calculating frozen backoff
+    #                 # generate new backoff for c
+    #                 b_c = np.random.randint(0, 4)
+    #                 if success_for_c < len(sim1.tx_c.arrivals):
+    #                     x_c = sim1.tx_c.arrivals[success_for_c]  # get the next arrival for comparison
+    #                 else:
+    #                     x_c = x_c
+    #                 # where do we advance clock next
+    #                 if (x_a < x_c):
+    #                     clock = x_a
+    #                 else:
+    #                     clock = x_c
+    #             # (x_a < clock and clock < x_c) or (x_c < clock and clock < x_a)
+    #         elif (clock <= x_c) or (clock <= x_a):  # one event in the past one in the future
+    #             if clock < x_c:
+    #                 if clock + b_a == x_c + b_c:  # collision resolution
+    #                     collision += 1
+    #                     retry += 1
+    #                     sim1.tx_a.contention_window_size = 2 ** retry * 4
+    #                     sim1.tx_c.contention_window_size = 2 ** retry * 4
+    #                     clock = clock + b_a + frame_size + SIFS + ACK
+    #                     b_a = np.random.randint(0, sim1.tx_a.contention_window_size)
+    #                     b_c = np.random.randint(0, sim1.tx_c.contention_window_size)
+    #                     print("CRP")
+    #                 elif clock + b_a < x_c + b_c:  # a transmits first
+    #                     retry = 0
+    #                     print("a arrived @:", x_a, " transmitted in slot", clock + b_a + DIFS + 1)
+    #                     clock = clock + b_a + 1 + DIFS + SIFS + ACK + frame_size
+    #                     success_for_a += 1
+    #                     sim1.tx_a.contention_window_size = 4
+    #                     if x_c + DIFS >= x_a + b_a:
+    #                         # Keep the same backoff
+    #                         pass
+    #                     else:
+    #                         b_c = x_a + b_a - x_c  # this should be the new backoff
+    #                     # generate new backoff for a
+    #                     b_a = np.random.randint(0, 4)
+    #                     if(success_for_a < len(sim1.tx_a.arrivals)):
+    #                         x_a = sim1.tx_a.arrivals[success_for_a]  # get the next arrival for comparison
+    #                     else:
+    #                         x_a = x_a
+    #                     # where do we advance clock next
+    #                     if (x_a < x_c):
+    #                         clock = x_a
+    #                     else:
+    #                         clock = x_c
+    #                 else:
+    #                     retry = 0
+    #                     print("c arrived @:", x_c, " transmitted in slot", x_c + b_c + DIFS + 1)
+    #                     clock = clock + b_c + 1 + DIFS + SIFS + ACK + frame_size
+    #                     success_for_c += 1
+    #                     sim1.tx_c.contention_window_size = 4
+    #                     if x_a >= x_c + b_c:
+    #                         # Keep the same backoff
+    #                         pass
+    #                     else:
+    #                         b_a = abs(x_c + b_c - x_a)  # this should be the new backoff
+    #                     # generate new backoff for c
+    #                     b_c = np.random.randint(0, 4)
+    #                     if success_for_c < len(sim1.tx_c.arrivals):
+    #                         x_c = sim1.tx_c.arrivals[success_for_c] # get the next arrival for comparison
+    #                     else:
+    #                         x_c = x_c
+    #
+    #                     # where do we advance clock next
+    #                     if (x_a < x_c):
+    #                         clock = x_a
+    #                     else:
+    #                         clock = x_c
+    #             elif clock < x_a:
+    #                 if clock + b_c == x_a + b_a:  # collision resolution
+    #                     collision += 1
+    #                     retry += 1
+    #                     sim1.tx_a.contention_window_size = 2 ** retry * 4
+    #                     sim1.tx_c.contention_window_size = 2 ** retry * 4
+    #                     clock = clock + b_a + frame_size + SIFS + ACK
+    #                     b_a = np.random.randint(0, sim1.tx_a.contention_window_size)
+    #                     b_c = np.random.randint(0, sim1.tx_c.contention_window_size)
+    #                     print("CRP")
+    #                 elif x_c + b_c < x_a + b_a:  # a transmits first
+    #                     retry = 0
+    #                     print("c arrived @:", x_c, " transmitted in slot", clock + b_c + DIFS + 1)
+    #                     clock = clock + b_c + 1 + DIFS + SIFS + ACK + frame_size
+    #                     success_for_c += 1
+    #                     sim1.tx_c.contention_window_size = 4
+    #                     if x_a + DIFS >= x_c + b_c:
+    #                         # Keep the same backoff
+    #                         pass
+    #                     else:
+    #                         b_a = abs(x_c + b_c - x_a)  # this should be the new backoff
+    #                     # generate new backoff for c
+    #                     b_c = np.random.randint(0, 4)
+    #                     if success_for_c < len(sim1.tx_c.arrivals):
+    #                         x_c = sim1.tx_c.arrivals[success_for_c]  # get the next arrival for comparison
+    #                     else:
+    #                         x_c = x_c
+    #                         # where do we advance clock next
+    #                     if (x_a < x_c):
+    #                         clock = x_a
+    #                     else:
+    #                         clock = x_c
+    #                 else:
+    #                     retry = 0
+    #                     print("a arrived @:", x_a, " transmitted in slot", x_a + b_a + DIFS + 1)
+    #                     clock = clock + b_a + 1 + DIFS + SIFS + ACK + frame_size
+    #                     success_for_a += 1
+    #                     sim1.tx_a.contention_window_size = 4
+    #                     if x_c >= x_a + b_a:
+    #                         # Keep the same backoff
+    #                         pass
+    #                     else:
+    #                         b_c = abs(x_a + b_a - x_c)  # this should be the new backoff
+    #                     # generate new backoff for a
+    #                     b_a = np.random.randint(0, 4)
+    #                     if success_for_a < len(sim1.tx_a.arrivals):
+    #                         x_a = sim1.tx_a.arrivals[success_for_a]  # get the next arrival for comparison
+    #                     else:
+    #                         x_a = x_a
+    #                         # where do we advance clock next
+    #                     if (x_a < x_c):
+    #                         clock = x_a
+    #                     else:
+    #                         clock = x_c
+    #             else:
+    #                 if b_c == b_a:  # collision resolution
+    #                     collision += 1
+    #                     retry += 1
+    #                     sim1.tx_a.contention_window_size = 2 ** retry * 4
+    #                     sim1.tx_c.contention_window_size = 2 ** retry * 4
+    #                     clock = clock + b_a + frame_size + SIFS + ACK
+    #                     b_a = np.random.randint(0, sim1.tx_a.contention_window_size)
+    #                     b_c = np.random.randint(0, sim1.tx_c.contention_window_size)
+    #                     print("CRP")
+    #                 elif b_c < b_a:  # a transmits first
+    #                     retry = 0
+    #                     print("c arrived @:", x_c, " transmitted in slot", clock + b_c + DIFS + 1)
+    #                     clock = clock + b_c + 1 + DIFS + SIFS + ACK + frame_size
+    #                     success_for_c += 1
+    #                     sim1.tx_c.contention_window_size = 4
+    #                     if x_a + DIFS >= x_c + b_c:
+    #                         # Keep the same backoff
+    #                         pass
+    #                     else:
+    #                         b_a = abs(x_c + b_c - x_a)  # this should be the new backoff
+    #                     # generate new backoff for c
+    #                     b_c = np.random.randint(0, 4)
+    #                     if success_for_c < len(sim1.tx_c.arrivals):
+    #                         x_c = sim1.tx_c.arrivals[success_for_c]  # get the next arrival for comparison
+    #                     else:
+    #                         x_c = x_c
+    #                         # where do we advance clock next
+    #                     if (x_a < x_c):
+    #                         clock = x_a
+    #                     else:
+    #                         clock = x_c
+    #                 else:
+    #                     retry = 0
+    #                     print("a arrived @:", x_a, " transmitted in slot", x_a + b_a + DIFS + 1)
+    #                     clock = clock + b_a + 1 + DIFS + SIFS + ACK + frame_size
+    #                     success_for_a += 1
+    #                     sim1.tx_a.contention_window_size = 4
+    #                     if x_c >= x_a + b_a:
+    #                         # Keep the same backoff
+    #                         pass
+    #                     else:
+    #                         b_c = abs(x_a + b_a - x_c)  # this should be the new backoff
+    #                     # generate new backoff for a
+    #                     b_a = np.random.randint(0, 4)
+    #                     if success_for_a < len(sim1.tx_a.arrivals):
+    #                         x_a = sim1.tx_a.arrivals[success_for_a]  # get the next arrival for comparison
+    #                     else:
+    #                         x_a = x_a
+    #                         # where do we advance clock next
+    #                     if (x_a < x_c):
+    #                         clock = x_a
+    #                     else:
+    #                         clock = x_c
+    #         elif clock > x_a and clock > x_c:  # both are in the past
+    #             if b_a == b_c:  # collision
+    #                 collision += 1
+    #                 retry += 1
+    #                 sim1.tx_a.contention_window_size = 2 ** retry * 4
+    #                 sim1.tx_c.contention_window_size = 2 ** retry * 4
+    #                 clock = clock + b_a + frame_size + SIFS + ACK
+    #                 b_a = np.random.randint(0, sim1.tx_a.contention_window_size) # new contenton window size
+    #                 b_c = np.random.randint(0, sim1.tx_c.contention_window_size)
+    #                 print("crp")
+    #             elif b_a < b_c:  # a transmits
+    #                 retry = 0
+    #                 print("a arrived @:", x_a, " transmitted in slot", clock + b_a + DIFS + 1)
+    #                 success_for_a += 1
+    #                 sim1.tx_a.contention_window_size = 4
+    #                 if x_c >= x_a + b_a:
+    #                     # Keep the same backoff
+    #                     pass
+    #                 else:
+    #                     b_c = abs(x_a + b_a - x_c)  # this should be the new backoff
+    #
+    #                 if success_for_a < len(sim1.tx_a.arrivals):
+    #                     x_a = sim1.tx_a.arrivals[success_for_a]  # get the next arrival for comparison
+    #                 else:
+    #                     x_a = x_a
+    #                 clock = clock + b_a + DIFS + 1 + DIFS + SIFS + frame_size
+    #                 # generate new backoff for a
+    #                 b_a = np.random.randint(0, 4)
+    #             else:  # c transmits
+    #                 retry = 0
+    #                 print("c arrived @:", x_c, " transmitted in slot", clock + b_c + DIFS + 1)
+    #                 success_for_c += 1
+    #                 sim1.tx_c.contention_window_size = 4
+    #                 if success_for_a < len(sim1.tx_a.arrivals):
+    #                     x_c = sim1.tx_c.arrivals[success_for_a]  # get the next arrival for comparison
+    #                 else:
+    #                     x_a = x_a
+    #                 clock = clock + b_c + DIFS + 1 + DIFS + SIFS + frame_size
+    #                 # generate new backoff for c
+    #                 b_c = np.random.randint(0, 4)
+    # print("End:")
+    # print("Amount of Successful transmissions for TX A for hidden terminal problem:", success_for_a)
+    # print("Amount of Successful transmissions for TX C for hidden terminal problem:", success_for_c)
+    # print("Amount of Collisions:", collision)
+    # return success_for_a, success_for_c, collision
 
-    # return the buffer
-    def get_buffer(self):
-        return self.buffer
 
-    # getting the back off to use for comparison
-    def get_back_off(self):
-        return self.back_off
+def run_CSMA_Top_B_simulation(arrival_rate):
+    sim2 = Simulation(arrival_rate)
+    sim2.tx_a = Transmitter(sim2.poisson_distributed_arrival_timings())
+    sim2.tx_c = Transmitter(sim2.poisson_distributed_arrival_timings())
 
-    def get_arrivals(self):
-        return self.arrivals
+    clock = 0
+    DIFS = 2
+    SIFS = 1
+    ACK = 2
+    b_a = np.random.randint(0, 4)
+    b_c = np.random.randint(0, 4)
+    frame_size = 100
+    success_a = 0
+    success_c = 0
+    collision_a = 0
+    collision_c = 0
+    collision = 0
+    retry = 0
+    print("Start:")
+    run = True
+    while run:
+        print("Clock:", clock)
+        if clock > 1000000:
+            run = False
+        if success_a == 0 and success_c == 0 and retry == 0:
+            x_a = sim2.tx_a.arrivals[0]
+            x_c = sim2.tx_c.arrivals[0]
+            if (x_a > x_c):
+                clock = x_c
+            else:
+                clock = x_a
+        # if a has nothing to transmit c transmits
+        if not success_a < len(sim2.tx_a.arrivals) and success_c < len(sim2.tx_c.arrivals):
+            print("C arrived @", clock, " and contends with no one so it has a success @",
+                  clock + DIFS + b_c)
+            clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # clock guaranteed to proceed to the end of transmission and wait for next arrival
+            print("C's frame is finished transmitting @", clock)
+            success_c += 1  # success for c
+            sim2.tx_c.contention_window_size = 4
+            if success_c < len(sim2.tx_c.arrivals):
+                x_c = sim2.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+        # if c has nothing to transmit a transmits
+        elif success_a < len(sim2.tx_a.arrivals) and not success_c < len(sim2.tx_c.arrivals):
+            print("A arrived @", clock, "and contends with no one so it has a success @",
+                  clock + DIFS + b_a)
+            clock = clock + DIFS + b_a + frame_size + SIFS + ACK
+            print("A's frame is finished transmitting @", clock)
+            success_a += 1
+            sim2.tx_a.contention_window_size = 4
+            if success_a < len(sim2.tx_a.arrivals):
+                x_a = sim2.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+        else:
+            print("Contention between x_a:", x_a, "and x_c:", x_c)
+            if clock <= x_c:
+                if clock + b_a + 102 < x_c + b_c:  # collision
+                    collision_a += 1
+                    collision += 1
+                    retry += 1  # how many times has this loop been entered
+                    # expand collision windows
+                    clock = clock + DIFS + b_a  # clock goes to the collision, and a new DIFS cycle shall start RTS collision
+                    # increase contention window
+                    sim2.tx_a.contention_window_size = 2 ** retry * 4
+                    sim2.tx_c.contention_window_size = 2 ** retry * 4
+                    # choose new backoffs
+                    b_a = np.random.randint(0, sim2.tx_a.contention_window_size)  # new backoff
+                    b_c = np.random.randint(0, sim2.tx_c.contention_window_size)
+                    # these will seemingly arrive at the end of the collision
+                    x_a = clock
+                    x_c = clock
+                    print("CRP")
+                elif clock + b_a + 102 < x_c + b_c:  # a gets its cts off before c
+                    success_a += 1
+                    sim2.tx_a.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("A arrived @", clock, "and A transmitted @", clock + DIFS + b_a)
+                    # advance clock
+                    clock = clock + DIFS + b_a + frame_size + SIFS + ACK  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("A's frame finished @", clock)
+                    b_a = np.random.randint(0, sim2.tx_a.contention_window_size)  # new backoff
+                    # how does b_c change
+                    b_c = abs(b_c - b_a)
+                    if success_a < len(sim2.tx_a.arrivals):
+                        x_a = sim2.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+                elif clock + b_a + 102 > x_c + b_c:  # c gets its cts off before a
+                    success_c += 1
+                    sim2.tx_c.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("C arrived @", clock, "and C transmitted @", clock + DIFS + b_c)
+                    # advance clock
+                    clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("C's frame finished @", clock)
+                    b_c = np.random.randint(0, sim2.tx_c.contention_window_size)  # new backoff
+                    b_a = abs(b_a - b_c)
+                    if success_c < len(sim2.tx_c.arrivals):
+                        x_c = sim2.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+            elif clock < x_a:
+                if clock + b_c + 102 < x_a + b_a:  # collision
+                    collision_c += 1
+                    collision += 1
+                    retry += 1  # how many times has this loop been entered
+                    # expand collision windows
+                    clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # clock goes to the collision, and a new DIFS cycle shall start RTS collision
+                    # increase contention window
+                    sim2.tx_a.contention_window_size = 2 ** retry * 4
+                    sim2.tx_c.contention_window_size = 2 ** retry * 4
+                    # choose new backoffs
+                    b_a = np.random.randint(0, sim2.tx_a.contention_window_size)  # new contenton window size
+                    b_c = np.random.randint(0, sim2.tx_c.contention_window_size)
+                    # these will seemingly arrive at the end of the collision
+                    x_a = clock
+                    x_c = clock
+                    print("CRP")
+                elif clock + b_c + 102 < x_a + b_a:  # c gets its cts off before a
+                    success_c += 1
+                    sim2.tx_c.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("C arrived @", clock, "and C transmitted @", clock + DIFS + b_c)
+                    # advance clock
+                    clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("C's frame finished @", clock)
+                    b_c = np.random.randint(0, sim2.tx_c.contention_window_size)  # new backoff
+                    b_a = abs(b_a - b_c)
+                    if success_c < len(sim2.tx_c.arrivals):
+                        x_c = sim2.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+                    # do we change the clock
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+                elif clock + b_c + 102 > x_a + b_a:  # a gets its cts off before c
+                    success_a += 1
+                    sim2.tx_a.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("A arrived @", clock, "and A transmitted @", clock + DIFS + b_a)
+                    # advance clock
+                    clock = clock + DIFS + b_c + frame_size + SIFS + ACK  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("A's frame finished @", clock)
+                    b_a = np.random.randint(0, sim2.tx_a.contention_window_size)  # new backoff
+                    b_c = abs(b_a - b_a)
+                    if success_a < len(sim2.tx_a.arrivals):
+                        x_a = sim2.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+    print("End:")
+    print("Amount of Successful transmissions for TX A for hidden terminal problem:", success_a)
+    print("Amount of collisions for TX C for hidden terminal problem:", collision_a)
+    print("Amount of Successful transmissions for TX C for hidden terminal problem:", success_c)
+    print("Amount of collisions for TX C for hidden terminal problem:", collision_c)
+    print("Amount of Collisions:", collision)
+    return success_a, success_c, collision_a, collision_c, collision
 
-    # decrementing
-    def set_arrivals(self, arrivals):
-        self.arrivals = arrivals
 
-    # this function will be used when we are comparing back off counters and deciding when to freeze the transmitter
-    def set_back_off(self, frozen_value):
-        self.back_off = frozen_value
+def run_VCS_Top_A_simulation(arrival_rate):
+    sim3 = Simulation(arrival_rate)
+    arrivals_a = sim3.poisson_distributed_arrival_timings()
+    arrivals_c = sim3.poisson_distributed_arrival_timings()
+    print(arrivals_a)
+    print(arrivals_c)
+    sim3.tx_a = Transmitter(arrivals_a)  # arrivals_a
+    sim3.tx_c = Transmitter(arrivals_c)  # arrivals_c
 
-    # for picking the backoff value using a uniform distribution
-    def select_back_off(self, collisions):
-        self.back_off = np.random.randint(0, 2**collisions*self.contention_window_size - 1)
-        return self.back_off
+    clock = 0
+    success_a = 0
+    success_c = 0
+    collision_a = 0
+    collision_c = 0
+    collision = 0
+    retry = 0
 
-def test():
-    x = [1,2,3]
-    print(x[1:])
+    b_a = np.random.randint(0, 4)
+    b_c = np.random.randint(0, 4)
+
+    CTS = 2
+    RTS = 2
+    DIFS = 2
+    SIFS = 1
+    ACK = 2
+    frame_size = 100
+    NAV_RTS = 2 * SIFS + CTS + frame_size + SIFS + ACK  # should only be using this for topology a
+    NAV_CTS = SIFS + frame_size  # should only be using this for topology b
+    print("Start:")
+    run = True
+    while run:
+        print("Clock:", clock)
+        if clock > 1000000:
+            run = False
+        if success_a == 0 and success_c == 0 and retry == 0:
+            x_a = sim3.tx_a.arrivals[0]
+            x_c = sim3.tx_c.arrivals[0]
+            if (x_a > x_c):
+                clock = x_c
+            else:
+                clock = x_a
+        # if a has nothing to transmit c transmits
+        if not success_a < len(sim3.tx_a.arrivals) and success_c < len(sim3.tx_c.arrivals):
+            print("C arrived @", clock, " and contends with no one so it has a success @",
+                  clock + DIFS + RTS + 2 * SIFS + CTS)
+            clock = clock + DIFS + b_c + NAV_RTS  # clock guaranteed to proceed to the end of transmission and wait for next arrival
+            print("C's frame is finished transmitting @", clock)
+            success_c += 1  # success for c
+            sim3.tx_c.contention_window_size = 4
+            if success_c < len(sim3.tx_c.arrivals):
+                x_c = sim3.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+        # if c has nothing to transmit a transmits
+        elif success_a < len(sim3.tx_a.arrivals) and not success_c < len(sim3.tx_c.arrivals):
+            print("A arrived @", clock, "and contends with no one so it has a success @",
+                  clock + DIFS + b_a + RTS + 2 * SIFS + CTS)
+            clock = clock + DIFS + b_a + NAV_RTS
+            print("A's frame is finished transmitting @", clock)
+            success_a += 1
+            sim3.tx_a.contention_window_size = 4
+            if success_a < len(sim3.tx_a.arrivals):
+                x_a = sim3.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+        else:
+            print("Contention between x_a:", x_a, "and x_c:", x_c)
+            if clock <= x_c:
+                if clock + b_a == x_c + b_c:  # collision
+                    collision_a += 1
+                    collision += 1
+                    retry += 1  # how many times has this loop been entered
+                    # expand collision windows
+                    clock = clock + DIFS + b_a + RTS + SIFS + CTS  # clock goes to the collision, and a new DIFS cycle shall start RTS collision
+                    # increase contention window
+                    sim3.tx_a.contention_window_size = 2 ** retry * 4
+                    sim3.tx_c.contention_window_size = 2 ** retry * 4
+                    # choose new backoffs
+                    b_a = np.random.randint(0, sim3.tx_a.contention_window_size)  # new backoff
+                    b_c = np.random.randint(0, sim3.tx_c.contention_window_size)
+                    # these will seemingly arrive at the end of the collision
+                    x_a = clock
+                    x_c = clock
+                    print("CRP")
+                elif clock + b_a < x_c + b_c:  # a gets its cts off before c
+                    success_a += 1
+                    sim3.tx_a.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("A arrived @", clock, "and A transmitted @", clock + DIFS + b_a + RTS + 2 * SIFS + CTS)
+                    # advance clock
+                    clock = clock + DIFS + b_a + RTS + NAV_RTS  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("A's frame finished @", clock)
+                    b_a = np.random.randint(0, sim3.tx_a.contention_window_size)  # new backoff
+                    # how does b_c change
+                    b_c = abs(b_c - b_a)
+                    if success_a < len(sim3.tx_a.arrivals):
+                        x_a = sim3.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+                elif clock + b_a > x_c + b_c:  # c gets its cts off before a
+                    success_c += 1
+                    sim3.tx_c.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("C arrived @", clock, "and C transmitted @", clock + DIFS + b_c + RTS + 2 * SIFS + CTS)
+                    # advance clock
+                    clock = clock + DIFS + b_c + RTS + NAV_RTS  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("C's frame finished @", clock)
+                    b_c = np.random.randint(0, sim3.tx_c.contention_window_size)  # new backoff
+                    b_a = abs(b_a - b_c)
+                    if success_c < len(sim3.tx_c.arrivals):
+                        x_c = sim3.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+            elif clock < x_a:
+                if clock + b_c == x_a + b_a:  # collision
+                    collision_c += 1
+                    collision += 1
+                    retry += 1  # how many times has this loop been entered
+                    # expand collision windows
+                    clock = clock + DIFS + b_c + RTS + SIFS + CTS  # clock goes to the collision, and a new DIFS cycle shall start RTS collision
+                    # increase contention window
+                    sim3.tx_a.contention_window_size = 2 ** retry * 4
+                    sim3.tx_c.contention_window_size = 2 ** retry * 4
+                    # choose new backoffs
+                    b_a = np.random.randint(0, sim3.tx_a.contention_window_size)  # new contenton window size
+                    b_c = np.random.randint(0, sim3.tx_c.contention_window_size)
+                    # these will seemingly arrive at the end of the collision
+                    x_a = clock
+                    x_c = clock
+                    print("CRP")
+                elif clock + b_c < x_a + b_a:  # c gets its cts off before a
+                    success_c += 1
+                    sim3.tx_c.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("C arrived @", clock, "and C transmitted @", clock + DIFS + b_c + RTS + 2 * SIFS + CTS)
+                    # advance clock
+                    clock = clock + DIFS + b_c + RTS + NAV_RTS  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("C's frame finished @", clock)
+                    b_c = np.random.randint(0, sim3.tx_c.contention_window_size)  # new backoff
+                    b_a = abs(b_a - b_c)
+                    if success_c < len(sim3.tx_c.arrivals):
+                        x_c = sim3.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+                    # do we change the clock
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+                elif clock + b_c > x_a + b_a:  # a gets its cts off before c
+                    success_a += 1
+                    sim3.tx_a.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("A arrived @", clock, "and A transmitted @", clock + DIFS + b_a + RTS + 2 * SIFS + CTS)
+                    # advance clock
+                    clock = clock + DIFS + b_c + RTS + NAV_RTS  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("A's frame finished @", clock)
+                    b_a = np.random.randint(0, sim3.tx_a.contention_window_size)  # new backoff
+                    b_c = abs(b_a - b_a)
+                    if success_a < len(sim3.tx_a.arrivals):
+                        x_a = sim3.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+
+    print("End:")
+    print("Amount of Successful transmissions for TX A for hidden terminal problem:", success_a)
+    print("Amount of collisions for TX C for hidden terminal problem:", collision_a)
+    print("Amount of Successful transmissions for TX C for hidden terminal problem:", success_c)
+    print("Amount of collisions for TX C for hidden terminal problem:", collision_c)
+    print("Amount of Collisions:", collision)
+    return success_a, success_c, collision_a, collision_c, collision
+
+
+def run_VCS_Top_B_simulation(arrival_rate):
+    sim4 = Simulation(arrival_rate)
+    arrivals_a = sim4.poisson_distributed_arrival_timings()
+    arrivals_c = sim4.poisson_distributed_arrival_timings()
+    print(arrivals_a)
+    print(arrivals_c)
+    sim4.tx_a = Transmitter(arrivals_a)  # arrivals_a
+    sim4.tx_c = Transmitter(arrivals_c)  # arrivals_c
+
+    clock = 0
+    success_a = 0
+    success_c = 0
+    collision_a = 0
+    collision_c = 0
+    collision = 0
+    retry = 0
+
+    b_a = np.random.randint(0, 4)
+    b_c = np.random.randint(0, 4)
+
+    CTS = 2
+    RTS = 2
+    DIFS = 2
+    SIFS = 1
+    ACK = 2
+
+    frame_size = 100
+    NAV_RTS = 2 * SIFS + CTS + frame_size + SIFS + ACK  # should only be using this for topology a
+    NAV_CTS = SIFS + frame_size  # should only be using this for topology b
+    print("Start:")
+    run = True
+    while run:
+        print("Clock:", clock)
+        if clock > 1000000:
+            run = False
+        if success_a == 0 and success_c == 0 and retry == 0:
+            x_a = sim4.tx_a.arrivals[0]
+            x_c = sim4.tx_c.arrivals[0]
+            if (x_a > x_c):
+                clock = x_c
+            else:
+                clock = x_a
+        # if a has nothing to transmit c transmits
+        if not success_a < len(sim4.tx_a.arrivals) and success_c < len(sim4.tx_c.arrivals):
+            print("C arrived @", clock, " and contends with no one so it has a success @",
+                  clock + DIFS + RTS + 2 * SIFS + CTS + b_c)
+            clock = clock + DIFS + b_c + NAV_RTS  # clock guaranteed to proceed to the end of transmission and wait for next arrival
+            print("C's frame is finished transmitting @", clock)
+            success_c += 1  # success for c
+            sim4.tx_c.contention_window_size = 4
+            if success_c < len(sim4.tx_c.arrivals):
+                x_c = sim4.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+        # if c has nothing to transmit a transmits
+        elif success_a < len(sim4.tx_a.arrivals) and not success_c < len(sim4.tx_c.arrivals):
+            print("A arrived @", clock, "and contends with no one so it has a success @",
+                  clock + DIFS + b_a + RTS + 2 * SIFS + CTS + b_a)
+            clock = clock + DIFS + b_a + NAV_RTS
+            print("A's frame is finished transmitting @", clock)
+            success_a += 1
+            sim4.tx_a.contention_window_size = 4
+            if success_a < len(sim4.tx_a.arrivals):
+                x_a = sim4.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+        else:
+            print("Contention between x_a:", x_a, "and x_c:", x_c)
+            if clock <= x_c:
+                if clock + b_a == x_c + b_c or clock + b_a + 1 == x_c + b_c or clock + b_a - 1 == x_c + b_c:  # collision
+                    collision_a += 1
+                    collision += 1
+                    retry += 1  # how many times has this loop been entered
+                    # expand collision windows
+                    clock = clock + DIFS + b_a + RTS + SIFS + CTS  # clock goes to the collision, and a new DIFS cycle shall start RTS collision
+                    # increase contention window
+                    sim4.tx_a.contention_window_size = 2 ** retry * 4
+                    sim4.tx_c.contention_window_size = 2 ** retry * 4
+                    # choose new backoffs
+                    b_a = np.random.randint(0, sim4.tx_a.contention_window_size)  # new backoff
+                    b_c = np.random.randint(0, sim4.tx_c.contention_window_size)
+                    # these will seemingly arrive at the end of the collision
+                    x_a = clock
+                    x_c = clock
+                    print("CRP")
+                elif clock + b_a < x_c + b_c:  # a gets its cts off before c
+                    success_a += 1
+                    sim4.tx_a.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("A arrived @", clock, "and A transmitted @", clock + DIFS + b_a + RTS + 2 * SIFS + CTS)
+                    # advance clock
+                    clock = clock + DIFS + b_a + RTS + NAV_RTS  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("A's frame finished @", clock)
+                    b_a = np.random.randint(0, sim4.tx_a.contention_window_size)  # new backoff
+                    # how does b_c change
+                    b_c = abs(b_c - b_a)
+                    if success_a < len(sim4.tx_a.arrivals):
+                        x_a = sim4.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+                elif clock + b_a > x_c + b_c:  # c gets its cts off before a
+                    success_c += 1
+                    sim4.tx_c.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("C arrived @", clock, "and C transmitted @", clock + DIFS + b_c + RTS + 2 * SIFS + CTS)
+                    # advance clock
+                    clock = clock + DIFS + b_c + RTS + NAV_RTS  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("C's frame finished @", clock)
+                    b_c = np.random.randint(0, sim4.tx_c.contention_window_size)  # new backoff
+                    b_a = abs(b_a - b_c)
+                    if success_c < len(sim4.tx_c.arrivals):
+                        x_c = sim4.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+            elif clock < x_a:
+                if clock + b_c == x_a + b_a or clock + b_c + 1 == x_a + b_a or clock + b_c - 1 == x_a + b_a:  # collision
+                    collision_c += 1
+                    collision += 1
+                    retry += 1  # how many times has this loop been entered
+                    # expand collision windows
+                    clock = clock + DIFS + b_c + RTS + SIFS + CTS  # clock goes to the collision, and a new DIFS cycle shall start RTS collision
+                    # increase contention window
+                    sim4.tx_a.contention_window_size = 2 ** retry * 4
+                    sim4.tx_c.contention_window_size = 2 ** retry * 4
+                    # choose new backoffs
+                    b_a = np.random.randint(0, sim4.tx_a.contention_window_size)  # new contenton window size
+                    b_c = np.random.randint(0, sim4.tx_c.contention_window_size)
+                    # these will seemingly arrive at the end of the collision
+                    x_a = clock
+                    x_c = clock
+                    print("CRP")
+                elif clock + b_c < x_a + b_a:  # c gets its cts off before a
+                    success_c += 1
+                    sim4.tx_c.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("C arrived @", clock, "and C transmitted @", clock + DIFS + b_c + RTS + 2 * SIFS + CTS)
+                    # advance clock
+                    clock = clock + DIFS + b_c + RTS + NAV_RTS  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("C's frame finished @", clock)
+                    b_c = np.random.randint(0, sim4.tx_c.contention_window_size)  # new backoff
+                    b_a = abs(b_a - b_c)
+                    if success_c < len(sim4.tx_c.arrivals):
+                        x_c = sim4.tx_c.arrivals[success_c]  # get the next arrival for comparison if there is one
+                    # do we change the clock
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+                elif clock + b_c > x_a + b_a:  # a gets its cts off before c
+                    success_a += 1
+                    sim4.tx_a.contention_window_size = 4  # reset cw
+                    retry = 0
+                    print("A arrived @", clock, "and A transmitted @", clock + DIFS + b_a + RTS + 2 * SIFS + CTS)
+                    # advance clock
+                    clock = clock + DIFS + b_c + RTS + NAV_RTS  # when c is done with its transmission the clock will have advanced to the end of that transmission
+                    print("A's frame finished @", clock)
+                    b_a = np.random.randint(0, sim4.tx_a.contention_window_size)  # new backoff
+                    b_c = abs(b_a - b_a)
+                    if success_a < len(sim4.tx_a.arrivals):
+                        x_a = sim4.tx_a.arrivals[success_a]  # get the next arrival for comparison if there is one
+                    if x_a < clock:
+                        x_a = clock
+                    if x_c < clock:
+                        x_c = clock
+                    clock = min(x_a, x_c)
+    print("End:")
+    print("Amount of Successful transmissions for TX A for hidden terminal problem:", success_a)
+    print("Amount of collisions for TX C for hidden terminal problem:", collision_a)
+    print("Amount of Successful transmissions for TX C for hidden terminal problem:", success_c)
+    print("Amount of collisions for TX C for hidden terminal problem:", collision_c)
+    print("Amount of Collisions:", collision)
+    return success_a, success_c, collision_a, collision_c, collision
+
 
 def main():
-    _topology, _protocol, arrival_rate = "A", "CSMA_CA", 2
-    simulation = Simulation(_topology, _protocol, arrival_rate)
-    simulation.set_transmitter_a(Transmitter(simulation.poisson_distributed_arrival_timings())) # simulation of a setting transmitter a
-    simulation.set_transmitter_c(Transmitter(simulation.poisson_distributed_arrival_timings())) # simulation of a setting transmitter c
-    # up until here all the arrival times are generated and working, these numbers are good
-    simulation.csma_ca_protocol_topology_a()
-   # test()
-
-
-
-
-
+    # run_CSMA_Top_A_simulation(3)
+    # # run_CSMA_Top_B_simulation(200)
+    # # run_VCS_Top_B_simulation(1000)
+    arrival_rates = [100, 200, 300, 500, 700, 1000]
+    info1 = []
+    info2 = []
+    info3 = []
+    info4 = []
+    for _lambda in arrival_rates:
+        info1.append(run_CSMA_Top_A_simulation(_lambda))
+        info2.append(run_CSMA_Top_A_simulation(_lambda))
+        info3.append(run_VCS_Top_A_simulation(_lambda))
+        info4.append(run_VCS_Top_B_simulation(_lambda))
+    print()
+    i = 0
+    print("CSMA Enabled: (Topology A)")
+    for x in info1:
+        print("For an arrival rate of", arrival_rates[i])
+        print("We expect to see", x[0], "transmissions from A")
+        print("and", x[2], "collisions from A")
+        print("and", x[1], "transmissions from C")
+        print("and", x[3], "collisions from C")
+        print("and", x[4], "collisions on the medium")
+        print()
+        i += 1
+    print()
+    i = 0
+    print("CSMA Enabled: (Topology B)")
+    for x in info2:
+        print("For an arrival rate of", arrival_rates[i])
+        print("We expect to see", x[0], "transmissions from A")
+        print("and", x[2], "collisions from A")
+        print("and", x[1], "transmissions from C")
+        print("and", x[3], "collisions from C")
+        print("and", x[4], "collisions on the medium")
+        print()
+        i += 1
+    print()
+    print("VCS Enabled: (Topology A)")
+    i = 0
+    for x in info3:
+        print("For an arrival rate of", arrival_rates[i])
+        print("We expect to see", x[0], "transmissions from A")
+        print("and", x[2], "collisions from A")
+        print("and", x[1], "transmissions from C")
+        print("and", x[3], "collisions from C")
+        print("and", x[4], "collisions on the medium")
+        print()
+        i += 1
+    print()
+    print("VCS Enabled: (Topology B)")
+    i = 0
+    for x in info4:
+        print("For an arrival rate of", arrival_rates[i])
+        print("We expect to see", x[0], "transmissions from A")
+        print("and", x[2], "collisions from A")
+        print("and", x[1], "transmissions from C")
+        print("and", x[3], "collisions from C")
+        print("and", x[4], "collisions on the medium")
+        print()
+        i += 1
+    print()
 
 
 main()
